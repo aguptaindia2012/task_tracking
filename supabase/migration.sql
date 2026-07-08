@@ -66,3 +66,13 @@ create policy "own rows" on activity_log for all using (auth.uid() = user_id) wi
 create index tasks_user_idx on tasks (user_id);
 create index notes_user_idx on notes (user_id);
 create index activity_task_idx on activity_log (task_id);
+
+-- Enabling RLS is not enough: the logged-in role also needs table privileges,
+-- or every write fails with "permission denied". RLS still restricts the rows.
+grant usage on schema public to authenticated, anon;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public
+  grant usage, select on sequences to authenticated;

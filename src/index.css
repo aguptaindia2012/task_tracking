@@ -132,6 +132,27 @@ a { color: var(--accent-strong); text-decoration: none; }
 .row { display: flex; gap: 8px; align-items: center; }
 .spread { justify-content: space-between; }
 
+/* segmented control (Board group-by switch) */
+.seg {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.seg-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 5px 12px;
+  border-radius: 6px;
+}
+.seg-btn.active { background: var(--accent); color: #fff; }
+.seg-btn:hover:not(.active) { color: var(--text); }
+
 /* ---------- board ---------- */
 
 .board {
