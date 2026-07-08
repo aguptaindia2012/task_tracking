@@ -3,14 +3,13 @@ import { useStore } from '../hooks/useStore'
 import { createContact, createProject, deleteContact, deleteProject, sync } from '../lib/store'
 import { supabase, isCloudConfigured } from '../lib/supabase'
 import { useInstallPrompt } from '../hooks/useInstallPrompt'
-
-const PALETTE = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#a855f7', '#84cc16']
+import { BRAND_COLORS, colorName } from '../lib/brand'
 
 export default function Settings() {
   const { projects, contacts, tasks, syncState, pendingCount } = useStore()
   const { available: canInstall, installed, promptInstall } = useInstallPrompt()
   const [projectName, setProjectName] = useState('')
-  const [projectColor, setProjectColor] = useState(PALETTE[0])
+  const [projectColor, setProjectColor] = useState(BRAND_COLORS[0].hex)
   const [contactName, setContactName] = useState('')
 
   function addProject(e: FormEvent) {
@@ -33,20 +32,33 @@ export default function Settings() {
 
       <div className="card">
         <h2 style={{ margin: '0 0 10px', fontSize: 16 }}>Projects</h2>
-        <form className="row" onSubmit={addProject}>
-          <input className="input" placeholder="New project name" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
-          <select className="input" value={projectColor} onChange={(e) => setProjectColor(e.target.value)} style={{ width: 'auto', background: projectColor, color: '#fff' }}>
-            {PALETTE.map((c) => (
-              <option key={c} value={c} style={{ background: c }}>{c}</option>
-            ))}
-          </select>
-          <button className="btn">Add</button>
+        <form onSubmit={addProject}>
+          <div className="row" style={{ marginBottom: 10 }}>
+            <input className="input" placeholder="New project name" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
+            <button className="btn">Add</button>
+          </div>
+          <div className="row" style={{ alignItems: 'center', gap: 12 }}>
+            <div className="swatches">
+              {BRAND_COLORS.map((c) => (
+                <button
+                  type="button"
+                  key={c.hex}
+                  className={`swatch${projectColor === c.hex ? ' selected' : ''}`}
+                  style={{ background: c.hex }}
+                  title={c.name}
+                  aria-label={c.name}
+                  onClick={() => setProjectColor(c.hex)}
+                />
+              ))}
+            </div>
+            <span className="small muted">Colour: <strong style={{ color: 'var(--text)' }}>{colorName(projectColor)}</strong></span>
+          </div>
         </form>
         <ul className="manage-list">
           {projects.map((p) => (
             <li key={p.id}>
               <span className="dot" style={{ width: 12, height: 12, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
-              <span className="grow">{p.name}</span>
+              <span className="grow">{p.name} <span className="small muted">· {colorName(p.color)}</span></span>
               <span className="small muted">{tasks.filter((t) => t.project_id === p.id).length} tasks</span>
               <button
                 className="btn danger sm"

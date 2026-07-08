@@ -10,6 +10,7 @@ import Board from './pages/Board'
 import TaskDetail from './pages/TaskDetail'
 import Timeline from './pages/Timeline'
 import Notes from './pages/Notes'
+import Extract from './pages/Extract'
 import Driving from './pages/Driving'
 import Settings from './pages/Settings'
 
@@ -64,6 +65,7 @@ export default function App() {
           <NavLink to="/">Board</NavLink>
           <NavLink to="/timeline">Timeline</NavLink>
           <NavLink to="/notes">Notes</NavLink>
+          <NavLink to="/extract">✨ Extract</NavLink>
           <NavLink to="/drive">🎙 Drive</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
@@ -83,6 +85,7 @@ export default function App() {
           <Route path="/task/:id" element={<TaskDetail />} />
           <Route path="/timeline" element={<Timeline />} />
           <Route path="/notes" element={<Notes />} />
+          <Route path="/extract" element={<Extract />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
