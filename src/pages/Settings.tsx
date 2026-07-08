@@ -2,11 +2,13 @@ import { useState, type FormEvent } from 'react'
 import { useStore } from '../hooks/useStore'
 import { createContact, createProject, deleteContact, deleteProject, sync } from '../lib/store'
 import { supabase, isCloudConfigured } from '../lib/supabase'
+import { useInstallPrompt } from '../hooks/useInstallPrompt'
 
 const PALETTE = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#a855f7', '#84cc16']
 
 export default function Settings() {
   const { projects, contacts, tasks, syncState, pendingCount } = useStore()
+  const { available: canInstall, installed, promptInstall } = useInstallPrompt()
   const [projectName, setProjectName] = useState('')
   const [projectColor, setProjectColor] = useState(PALETTE[0])
   const [contactName, setContactName] = useState('')
@@ -123,9 +125,32 @@ export default function Settings() {
         )}
       </div>
 
-      <div className="card small muted">
-        <strong>Install on your phone:</strong> open this app in Chrome on Android, tap the ⋮ menu → <em>Add to Home screen</em>.
-        It then launches full-screen like a native app, including Drive mode.
+      <div className="card">
+        <h2 style={{ margin: '0 0 10px', fontSize: 16 }}>Install as an app</h2>
+        {installed ? (
+          <p className="small" style={{ margin: 0, color: 'var(--success)' }}>✓ Running as an installed app.</p>
+        ) : canInstall ? (
+          <>
+            <p className="small muted" style={{ margin: '0 0 10px' }}>
+              Install VoiceTask so it opens full-screen from your desktop or home screen, like a native app.
+            </p>
+            <button className="btn" onClick={() => void promptInstall()}>⬇ Install app</button>
+          </>
+        ) : (
+          <div className="small muted">
+            <p style={{ marginTop: 0 }}>
+              A web app installs through the browser — there is no file to download.
+            </p>
+            <ul style={{ paddingLeft: 18, lineHeight: 1.8, margin: 0 }}>
+              <li><strong>Desktop Chrome / Edge:</strong> click the install icon (a monitor with a ⬇) at the right end of the address bar, or ⋮ menu → <em>Install VoiceTask…</em></li>
+              <li><strong>Android Chrome:</strong> ⋮ menu → <em>Add to Home screen</em> → Install</li>
+              <li><strong>iPhone Safari:</strong> Share button → <em>Add to Home Screen</em></li>
+            </ul>
+            <p style={{ marginBottom: 0 }}>
+              If you don't see the option, the app may already be installed, or your browser doesn't support installing web apps (Firefox on desktop, for example).
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

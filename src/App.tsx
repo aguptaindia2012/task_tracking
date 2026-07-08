@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase, isCloudConfigured } from './lib/supabase'
 import { sync } from './lib/store'
 import { useStore } from './hooks/useStore'
+import { useInstallPrompt } from './hooks/useInstallPrompt'
 import Login from './pages/Login'
 import Board from './pages/Board'
 import TaskDetail from './pages/TaskDetail'
@@ -24,6 +25,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(!isCloudConfigured)
   const { syncState, pendingCount } = useStore()
+  const { available: canInstall, promptInstall } = useInstallPrompt()
   const location = useLocation()
 
   useEffect(() => {
@@ -65,6 +67,11 @@ export default function App() {
           <NavLink to="/drive">🎙 Drive</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
+        {canInstall && (
+          <button className="btn sm" onClick={() => void promptInstall()} title="Install this app on your device">
+            ⬇ Install app
+          </button>
+        )}
         <span className={`sync-badge ${syncState}`} title="Cloud sync status">
           {SYNC_LABELS[syncState]}
           {pendingCount > 0 && ` (${pendingCount})`}
