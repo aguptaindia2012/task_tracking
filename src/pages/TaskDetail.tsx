@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../hooks/useStore'
-import { deleteTask, updateTask } from '../lib/store'
+import { archiveTask, deleteTask, restoreTask, updateTask } from '../lib/store'
 import { formatTimestamp } from '../lib/dates'
 import { STATUS_LABELS, type Activity, type Status } from '../types'
 
@@ -22,6 +22,10 @@ function describeActivity(a: Activity): string {
       return 'Reopened'
     case 'edited':
       return 'Details edited'
+    case 'archived':
+      return 'Archived'
+    case 'restored':
+      return 'Restored from archive'
   }
 }
 
@@ -48,18 +52,38 @@ export default function TaskDetail() {
     <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="row spread">
         <button className="btn secondary sm" onClick={() => navigate(-1)}>← Back</button>
-        <button
-          className="btn danger sm"
-          onClick={() => {
-            if (confirm('Delete this task and its history?')) {
-              deleteTask(task.id)
-              navigate('/')
-            }
-          }}
-        >
-          Delete
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          {task.archived_at ? (
+            <button className="btn secondary sm" onClick={() => restoreTask(task.id)}>Restore</button>
+          ) : (
+            <button
+              className="btn secondary sm"
+              onClick={() => {
+                archiveTask(task.id)
+                navigate('/')
+              }}
+            >
+              Archive
+            </button>
+          )}
+          <button
+            className="btn danger sm"
+            onClick={() => {
+              if (confirm('Permanently delete this task and its history?')) {
+                deleteTask(task.id)
+                navigate('/')
+              }
+            }}
+          >
+            Delete
+          </button>
+        </div>
       </div>
+      {task.archived_at && (
+        <div className="card" style={{ background: 'var(--cream)', borderColor: 'var(--orange)', padding: '10px 14px' }}>
+          <span className="small">📦 This task is archived. It's hidden from the board and timeline until restored.</span>
+        </div>
+      )}
 
       <div className="card">
         <div className="field">

@@ -62,6 +62,14 @@ function addDays(d: Date, n: number): Date {
   return copy
 }
 
+// Add a number of days to a YYYY-MM-DD string, returning YYYY-MM-DD.
+export function addDaysISO(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() + days)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return ''
   const [y, m, d] = iso.split('-').map(Number)

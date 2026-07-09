@@ -4,6 +4,9 @@ export interface Project {
   id: string
   name: string
   color: string
+  start_date: string | null
+  end_date: string | null
+  archived_at: string | null
   created_at: string
 }
 
@@ -23,6 +26,7 @@ export interface Task {
   position: number
   start_date: string | null
   due_date: string | null
+  archived_at: string | null
   created_at: string
   updated_at: string
   completed_at: string | null
@@ -36,6 +40,21 @@ export interface Note {
   created_at: string
 }
 
+// A preset task inside an SOP template. due_offset_days is the number of days
+// after the project's start date the task is due (null = no due date).
+export interface TemplateTask {
+  title: string
+  description: string
+  due_offset_days: number | null
+}
+
+export interface Template {
+  id: string
+  name: string
+  tasks: TemplateTask[]
+  created_at: string
+}
+
 export type ActivityAction =
   | 'created'
   | 'assigned'
@@ -45,6 +64,8 @@ export type ActivityAction =
   | 'due_date_set'
   | 'completed'
   | 'reopened'
+  | 'archived'
+  | 'restored'
 
 export interface Activity {
   id: string

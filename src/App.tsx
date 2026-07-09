@@ -13,6 +13,7 @@ import Notes from './pages/Notes'
 import Extract from './pages/Extract'
 import Driving from './pages/Driving'
 import Settings from './pages/Settings'
+import Archived from './pages/Archived'
 
 const SYNC_LABELS = {
   'local-only': 'Local only',
@@ -68,6 +69,7 @@ export default function App() {
           <NavLink to="/extract">✨ Extract</NavLink>
           <NavLink to="/drive">🎙 Drive</NavLink>
           <NavLink to="/settings">Settings</NavLink>
+          <NavLink to="/archived">Archived</NavLink>
         </nav>
         {canInstall && (
           <button className="btn sm" onClick={() => void promptInstall()} title="Install this app on your device">
@@ -87,6 +89,7 @@ export default function App() {
           <Route path="/notes" element={<Notes />} />
           <Route path="/extract" element={<Extract />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/archived" element={<Archived />} />
         </Routes>
       </main>
     </div>

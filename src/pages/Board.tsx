@@ -70,10 +70,13 @@ export default function Board() {
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
   )
 
+  const activeProjects = useMemo(() => projects.filter((p) => !p.archived_at), [projects])
+
   const filtered = useMemo(
     () =>
       tasks.filter(
         (t) =>
+          !t.archived_at &&
           (!projectFilter || t.project_id === projectFilter) &&
           (!contactFilter || t.contact_id === contactFilter),
       ),
@@ -84,9 +87,9 @@ export default function Board() {
   const columns: ColumnDef[] = useMemo(() => {
     if (groupBy === 'status') return (['todo', 'in_progress', 'done'] as Status[]).map((s) => ({ id: s, label: STATUS_LABELS[s] }))
     if (groupBy === 'project')
-      return [...projects.map((p) => ({ id: p.id, label: p.name, color: p.color })), { id: NONE, label: 'No project' }]
+      return [...activeProjects.map((p) => ({ id: p.id, label: p.name, color: p.color })), { id: NONE, label: 'No project' }]
     return [...contacts.map((c) => ({ id: c.id, label: c.name })), { id: NONE, label: 'Unassigned' }]
-  }, [groupBy, projects, contacts])
+  }, [groupBy, activeProjects, contacts])
 
   function keyOf(task: Task): string {
     if (groupBy === 'status') return task.status
@@ -137,7 +140,7 @@ export default function Board() {
         <div className="row">
           <select className="input" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} style={{ width: 'auto' }}>
             <option value="">All projects</option>
-            {projects.map((p) => (
+            {activeProjects.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>

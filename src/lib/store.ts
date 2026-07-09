@@ -1,6 +1,7 @@
 import { getDb, TABLES, type OutboxOp, type TableName } from './db'
 import { supabase } from './supabase'
-import type { Activity, ActivityAction, Contact, Note, Project, Status, Task } from '../types'
+import { addDaysISO } from './dates'
+import type { Activity, ActivityAction, Contact, Note, Project, Status, Task, Template, TemplateTask } from '../types'
 
 export type SyncState = 'local-only' | 'synced' | 'pending' | 'syncing' | 'error'
 
@@ -11,6 +12,7 @@ export interface StoreState {
   tasks: Task[]
   notes: Note[]
   activity: Activity[]
+  templates: Template[]
   syncState: SyncState
   pendingCount: number
 }
@@ -22,6 +24,7 @@ let state: StoreState = {
   tasks: [],
   notes: [],
   activity: [],
+  templates: [],
   syncState: supabase ? 'pending' : 'local-only',
   pendingCount: 0,
 }
@@ -81,15 +84,16 @@ async function refreshPending() {
 
 export async function initStore() {
   const db = await getDb()
-  const [projects, contacts, tasks, notes, activity] = await Promise.all([
+  const [projects, contacts, tasks, notes, activity, templates] = await Promise.all([
     db.getAll('projects'),
     db.getAll('contacts'),
     db.getAll('tasks'),
     db.getAll('notes'),
     db.getAll('activity_log'),
+    db.getAll('templates'),
   ])
   const pendingCount = await db.count('outbox')
-  setState({ ready: true, projects, contacts, tasks, notes, activity, pendingCount })
+  setState({ ready: true, projects, contacts, tasks, notes, activity, templates, pendingCount })
   window.addEventListener('online', () => void sync())
   void sync()
 }
@@ -110,12 +114,17 @@ export async function sync() {
     const db = await getDb()
     const ops = (await db.getAll('outbox')) as OutboxOp[]
     for (const op of ops) {
+      let error = null
       if (op.type === 'upsert' && op.payload) {
-        const { error } = await supabase.from(op.table).upsert(op.payload)
-        if (error) throw error
+        ;({ error } = await supabase.from(op.table).upsert(op.payload))
       } else if (op.type === 'delete') {
-        const { error } = await supabase.from(op.table).delete().eq('id', op.id)
-        if (error) throw error
+        ;({ error } = await supabase.from(op.table).delete().eq('id', op.id))
+      }
+      if (error) {
+        // Leave the op queued so it retries later (e.g. after the v2 migration
+        // adds a missing table/column); don't let it wedge the rest.
+        console.warn(`sync push failed for "${op.table}"`, error.message)
+        continue
       }
       await db.delete('outbox', op.key!)
     }
@@ -124,7 +133,12 @@ export async function sync() {
       const fresh: Partial<StoreState> = {}
       for (const table of TABLES) {
         const { data: rows, error } = await supabase.from(table).select('*')
-        if (error) throw error
+        if (error) {
+          // A single missing/denied table (e.g. `templates` before the v2
+          // migration is run) shouldn't abort the whole sync — skip it.
+          console.warn(`sync: skipping table "${table}"`, error.message)
+          continue
+        }
         const tx = db.transaction(table, 'readwrite')
         await tx.objectStore(table).clear()
         for (const row of rows ?? []) await tx.objectStore(table).put(row)
@@ -178,6 +192,7 @@ export function createTask(input: {
     position: maxPos + 1,
     start_date: input.start_date ?? null,
     due_date: input.due_date ?? null,
+    archived_at: null,
     created_at: now(),
     updated_at: now(),
     completed_at: null,
@@ -244,15 +259,61 @@ export function deleteTask(id: string) {
   for (const a of orphaned) void persistDelete('activity_log', a.id)
 }
 
+export function archiveTask(id: string) {
+  const before = state.tasks.find((t) => t.id === id)
+  if (!before) return
+  const after: Task = { ...before, archived_at: now(), updated_at: now() }
+  setState({ tasks: state.tasks.map((t) => (t.id === id ? after : t)) })
+  void persistUpsert('tasks', after)
+  logActivity(id, 'archived', {})
+}
+
+export function restoreTask(id: string) {
+  const before = state.tasks.find((t) => t.id === id)
+  if (!before) return
+  const after: Task = { ...before, archived_at: null, updated_at: now() }
+  setState({ tasks: state.tasks.map((t) => (t.id === id ? after : t)) })
+  void persistUpsert('tasks', after)
+  logActivity(id, 'restored', {})
+}
+
 // ---------------------------------------------------------------------------
 // projects & contacts
 // ---------------------------------------------------------------------------
 
-export function createProject(name: string, color: string): Project {
-  const project: Project = { id: uuid(), name, color, created_at: now() }
+export function createProject(
+  name: string,
+  color: string,
+  dates: { start_date?: string | null; end_date?: string | null } = {},
+): Project {
+  const project: Project = {
+    id: uuid(),
+    name,
+    color,
+    start_date: dates.start_date ?? null,
+    end_date: dates.end_date ?? null,
+    archived_at: null,
+    created_at: now(),
+  }
   setState({ projects: [...state.projects, project] })
   void persistUpsert('projects', project)
   return project
+}
+
+export function updateProject(id: string, patch: Partial<Omit<Project, 'id' | 'created_at'>>) {
+  const before = state.projects.find((p) => p.id === id)
+  if (!before) return
+  const after: Project = { ...before, ...patch }
+  setState({ projects: state.projects.map((p) => (p.id === id ? after : p)) })
+  void persistUpsert('projects', after)
+}
+
+export function archiveProject(id: string) {
+  updateProject(id, { archived_at: now() })
+}
+
+export function restoreProject(id: string) {
+  updateProject(id, { archived_at: null })
 }
 
 export function deleteProject(id: string) {
@@ -314,4 +375,72 @@ export function createNote(content: string, source: 'voice' | 'typed', projectId
 export function deleteNote(id: string) {
   setState({ notes: state.notes.filter((n) => n.id !== id) })
   void persistDelete('notes', id)
+}
+
+// ---------------------------------------------------------------------------
+// SOP templates — reusable sets of preset tasks for repeated projects
+// ---------------------------------------------------------------------------
+
+export function createTemplate(name: string, tasks: TemplateTask[] = []): Template {
+  const template: Template = { id: uuid(), name, tasks, created_at: now() }
+  setState({ templates: [...state.templates, template] })
+  void persistUpsert('templates', template)
+  return template
+}
+
+export function updateTemplate(id: string, patch: Partial<Omit<Template, 'id' | 'created_at'>>) {
+  const before = state.templates.find((t) => t.id === id)
+  if (!before) return
+  const after: Template = { ...before, ...patch }
+  setState({ templates: state.templates.map((t) => (t.id === id ? after : t)) })
+  void persistUpsert('templates', after)
+}
+
+export function deleteTemplate(id: string) {
+  setState({ templates: state.templates.filter((t) => t.id !== id) })
+  void persistDelete('templates', id)
+}
+
+// Build a template from an existing project's current (non-archived) tasks.
+export function templateFromProject(projectId: string, name: string): Template | undefined {
+  const project = state.projects.find((p) => p.id === projectId)
+  if (!project) return undefined
+  const tasks: TemplateTask[] = state.tasks
+    .filter((t) => t.project_id === projectId && !t.archived_at)
+    .sort((a, b) => a.position - b.position)
+    .map((t) => ({
+      title: t.title,
+      description: t.description,
+      // Preserve each task's due date as an offset from the project start.
+      due_offset_days: t.due_date && project.start_date ? daysBetween(project.start_date, t.due_date) : null,
+    }))
+  return createTemplate(name, tasks)
+}
+
+// Instantiate a template into a brand-new project with dated tasks.
+export function instantiateTemplate(templateId: string, projectName: string, startDate: string, color: string): Project | undefined {
+  const template = state.templates.find((t) => t.id === templateId)
+  if (!template) return undefined
+  const offsets = template.tasks.map((t) => t.due_offset_days ?? 0)
+  const maxOffset = offsets.length ? Math.max(...offsets) : 0
+  const project = createProject(projectName, color, {
+    start_date: startDate,
+    end_date: maxOffset > 0 ? addDaysISO(startDate, maxOffset) : startDate,
+  })
+  for (const t of template.tasks) {
+    createTask({
+      title: t.title,
+      description: t.description,
+      project_id: project.id,
+      due_date: t.due_offset_days != null ? addDaysISO(startDate, t.due_offset_days) : null,
+    })
+  }
+  return project
+}
+
+function daysBetween(fromISO: string, toISO: string): number {
+  const [fy, fm, fd] = fromISO.split('-').map(Number)
+  const [ty, tm, td] = toISO.split('-').map(Number)
+  const ms = Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)
+  return Math.round(ms / 86400000)
 }

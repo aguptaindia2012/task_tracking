@@ -3,7 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import mammoth from 'mammoth'
 
-const MODEL = 'claude-opus-4-8'
+const MODEL = 'claude-haiku-4-5'
 
 // Structured-output schema: every field required (empty string = "none"), no
 // extra properties — the shape structured outputs need.
